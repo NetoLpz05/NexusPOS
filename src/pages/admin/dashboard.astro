@@ -1,0 +1,431 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { supabase } from "../../lib/supabase";
+
+// PROTECCIÓN TOTAL DEL BACKEND
+const accessToken = Astro.cookies.get("sb-access-token")?.value;
+const refreshToken = Astro.cookies.get("sb-refresh-token")?.value;
+
+if (!accessToken || !refreshToken) {
+  return Astro.redirect("/login");
+}
+
+await supabase.auth.setSession({
+  access_token: accessToken,
+  refresh_token: refreshToken,
+});
+const {
+  data: { user },
+} = await supabase.auth.getUser();
+
+if (!user) {
+  return Astro.redirect("/login");
+}
+
+// Comprobación de rol
+const { data: profile } = await supabase
+  .from("profiles")
+  .select("role")
+  .eq("id", user.id)
+  .maybeSingle();
+if (profile?.role !== "admin") {
+  return Astro.redirect("/");
+}
+
+// Forzar la consulta al servidor sin caché
+const { data: games } = await supabase
+  .from("products")
+  .select("*")
+  .order("id", { ascending: false });
+---
+
+<Layout title="Nexus POS | Panel de Administración">
+  <main class="min-h-screen bg-slate-950 text-white p-6 sm:p-12 relative">
+    <div class="max-w-6xl mx-auto space-y-8">
+      <div
+        class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-800 pb-6 gap-4"
+      >
+        <div>
+          <h1
+            class="text-3xl font-black bg-gradient-to-r from-violet-500 to-fuchsia-500 bg-clip-text text-transparent"
+          >
+            PANEL CONTROL CRUD
+          </h1>
+          <p class="text-sm text-slate-400">
+            Administra el inventario global de la plataforma gaming
+          </p>
+        </div>
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+          <a
+            href="/"
+            class="flex-1 sm:flex-none text-center bg-slate-900 border border-slate-800 hover:bg-slate-800 text-xs font-bold px-4 py-2.5 rounded-xl transition-all"
+          >
+            Volver a la Tienda 🛒
+          </a>
+          <button
+            id="logout-btn"
+            class="flex-1 sm:flex-none bg-rose-950/40 border border-rose-800/60 hover:bg-rose-900/60 text-rose-400 hover:text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all"
+          >
+            Cerrar Sesión 🚪
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 h-fit">
+          <h2
+            class="text-lg font-bold mb-4 text-fuchsia-500 flex items-center gap-2"
+          >
+            🕹️ Registrar Nuevo Juego
+          </h2>
+          <form id="crud-form" class="space-y-4">
+            <div>
+              <label class="block text-xs text-slate-400 font-semibold mb-1"
+                >Título del Videojuego</label
+              >
+              <input
+                type="text"
+                id="game-title"
+                required
+                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-fuchsia-500"
+                placeholder="Ej. Elden Ring"
+              />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 font-semibold mb-1"
+                >Precio (USD)</label
+              >
+              <input
+                type="number"
+                step="0.01"
+                id="game-price"
+                required
+                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-fuchsia-500"
+                placeholder="59.99"
+              />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 font-semibold mb-1"
+                >Descripción del Juego</label
+              >
+              <textarea
+                id="game-description"
+                required
+                rows="3"
+                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-fuchsia-500 resize-none"
+                placeholder="Escribe una breve sinopsis..."></textarea>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 font-semibold mb-1"
+                >URL de la Imagen de Portada</label
+              >
+              <input
+                type="url"
+                id="game-image"
+                required
+                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-fuchsia-500"
+                placeholder="https://..."
+              />
+            </div>
+            <button
+              type="submit"
+              class="w-full bg-gradient-to-r from-violet-600 to-fuchsia-600 font-bold py-2.5 rounded-xl text-sm shadow-md hover:brightness-110 active:scale-95 transition-all"
+            >
+              Guardar en Catálogo 💾
+            </button>
+          </form>
+        </div>
+
+        <div
+          class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6"
+        >
+          <h2 class="text-lg font-bold mb-4 text-slate-200">
+            📦 Inventario Activo ({games?.length || 0})
+          </h2>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-300">
+              <thead
+                class="text-xs uppercase bg-slate-950 text-slate-400 border-b border-slate-800"
+              >
+                <tr>
+                  <th class="p-4">Miniatura</th>
+                  <th class="p-4">Título</th>
+                  <th class="p-4">Precio</th>
+                  <th class="p-4 text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {
+                  games &&
+                    games.map((game) => (
+                      <tr class="border-b border-slate-800/50 hover:bg-slate-950/40 transition-colors">
+                        <td class="p-4">
+                          <img
+                            src={game.image_url}
+                            alt={game.title}
+                            class="w-12 h-14 object-cover rounded-lg bg-slate-800 shadow-md"
+                          />
+                        </td>
+                        <td class="p-4 font-bold text-white">
+                          <div>
+                            <p>{game.title}</p>
+                            <p class="text-xs text-slate-500 font-normal line-clamp-1 max-w-xs">
+                              {game.description || "Sin descripción"}
+                            </p>
+                          </div>
+                        </td>
+                        <td class="p-4 text-fuchsia-400 font-semibold">
+                          ${game.price}
+                        </td>
+                        <td class="p-4 text-center flex items-center justify-center gap-2 h-20">
+                          <button
+                            data-id={game.id}
+                            data-title={game.title}
+                            data-price={game.price}
+                            data-description={game.description || ""}
+                            data-image={game.image_url}
+                            class="edit-btn bg-violet-500/10 hover:bg-violet-600 text-violet-400 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-violet-500/20"
+                          >
+                            Editar ✏️
+                          </button>
+                          <button
+                            data-id={game.id}
+                            class="delete-btn bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-rose-500/20"
+                          >
+                            Eliminar 🗑️
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="edit-modal"
+      class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-all duration-300"
+    >
+      <div
+        class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md m-4"
+      >
+        <h2 class="text-lg font-bold mb-4 text-violet-400">
+          ✏️ Editar Propiedades del Juego
+        </h2>
+        <form id="edit-form" class="space-y-4">
+          <input type="hidden" id="edit-game-id" />
+          <div>
+            <label class="block text-xs text-slate-400 font-semibold mb-1"
+              >Título</label
+            >
+            <input
+              type="text"
+              id="edit-game-title"
+              required
+              class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+            />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 font-semibold mb-1"
+              >Precio (USD)</label
+            >
+            <input
+              type="number"
+              step="0.01"
+              id="edit-game-price"
+              required
+              class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+            />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 font-semibold mb-1"
+              >Descripción</label
+            >
+            <textarea
+              id="edit-game-description"
+              required
+              rows="3"
+              class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500 resize-none"
+            ></textarea>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 font-semibold mb-1"
+              >URL Imagen</label
+            >
+            <input
+              type="url"
+              id="edit-game-image"
+              required
+              class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500"
+            />
+          </div>
+          <div class="flex gap-3 pt-2">
+            <button
+              type="button"
+              id="close-modal-btn"
+              class="w-1/2 bg-slate-950 border border-slate-800 hover:bg-slate-800 text-xs font-bold rounded-xl py-2.5 transition-all"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              class="w-1/2 bg-violet-600 hover:bg-violet-700 font-bold rounded-xl py-2.5 text-xs transition-all shadow-md shadow-violet-600/20"
+            >
+              Actualizar Cambios 🔄
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  import { supabase } from "../../lib/supabase";
+
+  const hardReload = () => {
+    window.location.replace(window.location.href);
+  };
+
+  // --- LOGOUT (CERRAR SESIÓN) ---
+  const logoutBtn = document.getElementById("logout-btn");
+  logoutBtn?.addEventListener("click", async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      alert("❌ Error al cerrar sesión: " + error.message);
+    } else {
+      // Limpiar las cookies de sesión del navegador de forma segura enviando al endpoint de logout o login
+      document.cookie =
+        "sb-access-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      document.cookie =
+        "sb-refresh-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      window.location.replace("/login");
+    }
+  });
+
+  // --- CONTROLADOR DE CREACIÓN (INSERT) ---
+  const crudForm = document.getElementById("crud-form") as HTMLFormElement;
+  crudForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const title = (
+      document.getElementById("game-title") as HTMLInputElement
+    ).value.trim();
+    const price = parseFloat(
+      (document.getElementById("game-price") as HTMLInputElement).value,
+    );
+    const description = (
+      document.getElementById("game-description") as HTMLTextAreaElement
+    ).value.trim(); // 🔥 Capturar descripción
+    const imageUrl = (
+      document.getElementById("game-image") as HTMLInputElement
+    ).value.trim();
+
+    const { error } = await supabase
+      .from("products")
+      .insert([
+        {
+          title,
+          price,
+          description,
+          image_url: imageUrl,
+          category: ["Videojuegos"],
+        },
+      ]); // 🔥 Añadido 'description'
+
+    if (error) {
+      alert("❌ Error al insertar el producto: " + error.message);
+    } else {
+      hardReload();
+    }
+  });
+
+  // --- CONTROLADOR DE ELIMINACIÓN (DELETE) ---
+  document.querySelectorAll(".delete-btn").forEach((button) => {
+    button.addEventListener("click", async (e) => {
+      const id = (e.currentTarget as HTMLButtonElement).getAttribute("data-id");
+
+      if (
+        confirm(
+          "⚠️ ¿Estás completamente seguro de que deseas eliminar este título?",
+        )
+      ) {
+        const { error } = await supabase.from("products").delete().eq("id", id);
+
+        if (error) {
+          alert("❌ Error al eliminar: " + error.message);
+        } else {
+          hardReload();
+        }
+      }
+    });
+  });
+
+  // --- LÓGICA DEL MODAL DE EDICIÓN (UPDATE) ---
+  const editModal = document.getElementById("edit-modal") as HTMLDivElement;
+  const editForm = document.getElementById("edit-form") as HTMLFormElement;
+  const closeModalBtn = document.getElementById("close-modal-btn");
+
+  const editIdInput = document.getElementById(
+    "edit-game-id",
+  ) as HTMLInputElement;
+  const editTitleInput = document.getElementById(
+    "edit-game-title",
+  ) as HTMLInputElement;
+  const editPriceInput = document.getElementById(
+    "edit-game-price",
+  ) as HTMLInputElement;
+  const editDescriptionInput = document.getElementById(
+    "edit-game-description",
+  ) as HTMLTextAreaElement; // 🔥 Input de descripción
+  const editImageInput = document.getElementById(
+    "edit-game-image",
+  ) as HTMLInputElement;
+
+  document.querySelectorAll(".edit-btn").forEach((button) => {
+    button.addEventListener("click", (e) => {
+      const btn = e.currentTarget as HTMLButtonElement;
+
+      editIdInput.value = btn.getAttribute("data-id") || "";
+      editTitleInput.value = btn.getAttribute("data-title") || "";
+      editPriceInput.value = btn.getAttribute("data-price") || "";
+      editDescriptionInput.value = btn.getAttribute("data-description") || ""; // 🔥 Rellenar descripción
+      editImageInput.value = btn.getAttribute("data-image") || "";
+
+      editModal.classList.remove("hidden");
+      setTimeout(() => editModal.classList.remove("opacity-0"), 10);
+    });
+  });
+
+  const closeModal = () => {
+    editModal.classList.add("opacity-0");
+    setTimeout(() => editModal.classList.add("hidden"), 300);
+  };
+  closeModalBtn?.addEventListener("click", closeModal);
+
+  // Enviar el UPDATE a Supabase
+  editForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const id = editIdInput.value;
+    const title = editTitleInput.value.trim();
+    const price = parseFloat(editPriceInput.value);
+    const description = editDescriptionInput.value.trim(); // 🔥 Capturar descripción editada
+    const imageUrl = editImageInput.value.trim();
+
+    const { error } = await supabase
+      .from("products")
+      .update({ title, price, description, image_url: imageUrl }) // 🔥 Añadido 'description' al update
+      .eq("id", id);
+
+    if (error) {
+      alert("❌ Error al actualizar el juego: " + error.message);
+    } else {
+      alert("🎉 ¡Producto actualizado correctamente!");
+      closeModal();
+      hardReload();
+    }
+  });
+</script>

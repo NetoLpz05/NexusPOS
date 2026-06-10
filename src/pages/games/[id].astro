@@ -1,0 +1,266 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import Navbar from "../../components/ui/navbar.astro"; // 🔥 IMPORTAMOS EL NAVBAR UNIFICADO
+import { supabase } from "../../lib/supabase";
+
+// 1. Obtener el ID dinámico desde la URL
+const { id } = Astro.params;
+
+if (!id) {
+  return Astro.redirect("/");
+}
+
+// 2. Consultar los datos del juego específico en Supabase
+const { data: game, error } = await supabase
+  .from("products")
+  .select("*")
+  .eq("id", id)
+  .maybeSingle();
+
+// Si el juego no existe, redirigir a la tienda
+if (error || !game) {
+  return Astro.redirect("/");
+}
+
+// 3. Verificar si el usuario está logueado para habilitar favoritos
+const accessToken = Astro.cookies.get("sb-access-token")?.value;
+const refreshToken = Astro.cookies.get("sb-refresh-token")?.value;
+let userLoggedIn = false;
+
+if (accessToken && refreshToken) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) userLoggedIn = true;
+}
+---
+
+<Layout title={`${game.title} | Nexus Store`}>
+  <Navbar />
+
+  <main
+    class="min-h-screen bg-slate-950 text-white relative overflow-x-hidden font-sans"
+  >
+    <div
+      class="absolute top-0 left-0 w-full h-[65vh] sm:h-[80vh] z-0"
+      transition:animate="fade"
+    >
+      <img
+        src={game.image_url}
+        alt=""
+        class="w-full h-full object-cover opacity-30 sm:opacity-25 blur-[1px] md:blur-0"
+      />
+      <div
+        class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-slate-950/20"
+      >
+      </div>
+      <div
+        class="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-transparent to-slate-950/20"
+      >
+      </div>
+    </div>
+
+    <div
+      class="relative z-10 max-w-6xl mx-auto px-6 pt-12 sm:pt-24 pb-16 grid grid-cols-1 lg:grid-cols-3 gap-12 items-start"
+    >
+      <div class="lg:col-span-2 space-y-6 sm:space-y-8">
+        <a
+          href="/"
+          class="inline-flex items-center text-xs font-bold text-slate-400 hover:text-white transition-colors gap-2 bg-slate-900/60 backdrop-blur px-3 py-1.5 rounded-full border border-slate-800/60 shadow"
+        >
+          ← Volver a la Tienda
+        </a>
+
+        <div class="space-y-2">
+          <h1
+            class="text-4xl sm:text-6xl font-extrabold tracking-tight leading-none text-white drop-shadow-md"
+            transition:name={`title-${game.id}`}
+          >
+            {game.title}
+          </h1>
+          <p
+            class="text-xs uppercase font-bold text-slate-400 tracking-widest bg-slate-900/40 inline-block px-2.5 py-1 rounded border border-slate-800/60"
+          >
+            Nexus Studios Inc.
+          </p>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <span
+            class="bg-blue-600 text-[10px] font-black px-2 py-0.5 rounded shadow-sm"
+            >PS5</span
+          >
+          <span
+            class="bg-slate-800 text-[10px] font-black px-2 py-0.5 rounded shadow-sm text-slate-300"
+            >PC</span
+          >
+        </div>
+
+        <div class="space-y-3 max-w-2xl">
+          <h3 class="text-xs uppercase tracking-wider font-bold text-slate-400">
+            Sinopsis del juego
+          </h3>
+          <p
+            class="text-slate-300 text-sm sm:text-base leading-relaxed drop-shadow"
+          >
+            {
+              game.description ||
+                "No hay una descripción disponible todavía para este título. ¡Pronto añadiremos más detalles del universo de este juego!"
+            }
+          </p>
+        </div>
+
+        <div
+          class="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-6 border-t border-slate-900"
+        >
+          <div class="flex items-center gap-3 text-slate-300">
+            <span
+              class="text-xl bg-slate-900 p-2.5 rounded-xl border border-slate-800"
+              >👤</span
+            >
+            <div>
+              <p
+                class="text-[10px] text-slate-500 font-bold uppercase tracking-wider"
+              >
+                Jugadores
+              </p>
+              <p class="text-xs font-semibold">1 jugador</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 text-slate-300">
+            <span
+              class="text-xl bg-slate-900 p-2.5 rounded-xl border border-slate-800"
+              >🎮</span
+            >
+            <div>
+              <p
+                class="text-[10px] text-slate-500 font-bold uppercase tracking-wider"
+              >
+                Vibración
+              </p>
+              <p class="text-xs font-semibold">Compatible con DualSense</p>
+            </div>
+          </div>
+          <div
+            class="flex items-center gap-3 text-slate-300 col-span-2 sm:col-span-1"
+          >
+            <span
+              class="text-xl bg-slate-900 p-2.5 rounded-xl border border-slate-800"
+              >🌐</span
+            >
+            <div>
+              <p
+                class="text-[10px] text-slate-500 font-bold uppercase tracking-wider"
+              >
+                Juego en red
+              </p>
+              <p class="text-xs font-semibold">Opcional</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        class="bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/50 space-y-6 lg:sticky lg:top-24"
+      >
+        <img
+          src={game.image_url}
+          alt=""
+          class="w-full h-48 object-cover rounded-2xl bg-slate-800 shadow-inner hidden md:block"
+          transition:name={`image-${game.id}`}
+        />
+
+        <div class="space-y-1">
+          <div class="flex items-baseline gap-2">
+            <span class="text-3xl sm:text-4xl font-black text-white"
+              >${game.price}</span
+            >
+            <span class="text-xs text-slate-400 font-medium">USD</span>
+          </div>
+          <p
+            class="text-[11px] text-emerald-400 font-semibold flex items-center gap-1 bg-emerald-500/10 w-fit px-2 py-0.5 rounded-md"
+          >
+            ✓ Disponible para descarga inmediata
+          </p>
+        </div>
+
+        <div class="space-y-3">
+          <button
+            id="buy-btn"
+            class="w-full bg-orange-600 hover:bg-orange-500 active:scale-[0.98] text-white font-extrabold text-sm py-3.5 rounded-2xl transition-all shadow-lg shadow-orange-600/20 tracking-wide"
+          >
+            Añadir al Carrito 🛒
+          </button>
+
+          <button
+            id="fav-btn"
+            data-game-id={game.id}
+            data-logged={userLoggedIn ? "true" : "false"}
+            class="w-full bg-slate-950 hover:bg-slate-800/80 active:scale-[0.98] text-slate-200 border border-slate-800 font-bold text-sm py-3.5 rounded-2xl transition-all flex items-center justify-center gap-2"
+          >
+            <span id="fav-icon">🤍</span>
+            <span id="fav-text">Añadir a Favoritos</span>
+          </button>
+        </div>
+
+        <div
+          class="text-[11px] text-slate-400 space-y-2 pt-2 border-t border-slate-800/60"
+        >
+          <p class="flex items-center gap-2">
+            🛡️ Compra segura garantizada por Nexus POS.
+          </p>
+          <p class="flex items-center gap-2">
+            🔄 Las descargas digitales no admiten devolución instantánea.
+          </p>
+        </div>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  // Escuchamos el evento nativo de Astro para asegurar que el JS corra siempre de forma óptima.
+  document.addEventListener("astro:page-load", () => {
+    const favBtn = document.getElementById("fav-btn");
+    const favIcon = document.getElementById("fav-icon");
+    const favText = document.getElementById("fav-text");
+
+    let isFavorited = false;
+
+    favBtn?.addEventListener("click", () => {
+      const isLogged = favBtn.getAttribute("data-logged") === "true";
+
+      if (!isLogged) {
+        alert(
+          "🔒 ¡Inicia sesión para guardar este videojuego en tu lista de favoritos!",
+        );
+        window.location.href = "/login";
+        return;
+      }
+
+      isFavorited = !isFavorited;
+
+      if (isFavorited) {
+        if (favIcon) favIcon.textContent = "❤️";
+        if (favText) favText.textContent = "¡En tus Favoritos!";
+        favBtn.classList.add(
+          "border-rose-500/30",
+          "bg-rose-950/20",
+          "text-rose-400",
+        );
+      } else {
+        if (favIcon) favIcon.textContent = "🤍";
+        if (favText) favText.textContent = "Añadir a Favoritos";
+        favBtn.classList.remove(
+          "border-rose-500/30",
+          "bg-rose-950/20",
+          "text-rose-400",
+        );
+      }
+    });
+
+    document.getElementById("buy-btn")?.addEventListener("click", () => {
+      alert("🛍️ ¡Juego añadido al carrito de compras exitosamente!");
+    });
+  });
+</script>

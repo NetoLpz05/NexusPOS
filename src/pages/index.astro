@@ -1,9 +1,10 @@
 ---
+export const prerender = false;
 import Layout from "../layouts/Layout.astro";
-import Navbar from "../components/ui/navbar.astro"; // 1. Importamos tu componente unificado
+import Navbar from "../components/ui/navbar.astro";
 import { supabase } from "../lib/supabase";
 
-// 2. Traemos únicamente los productos de la base de datos para las Cards
+// Traemos únicamente los productos de la base de datos para las Cards
 const { data: games, error } = await supabase.from("products").select("*");
 
 if (error) {
@@ -45,39 +46,49 @@ if (error) {
                 {/* Efecto Glow interactivo del mouse */}
                 <div class="pointer-events-none absolute -inset-px rounded-2xl opacity-0 group-hover:opacity-100 transition duration-300 bg-[radial-gradient(400px_circle_at_var(--mouse-x)_var(--mouse-y),rgba(139,92,246,0.15),transparent_40%)]" />
 
-                {/* Imagen del Videojuego */}
-                <div class="relative h-48 overflow-hidden bg-slate-200 dark:bg-slate-800">
-                  <img
-                    src={game.image_url}
-                    alt={game.title}
-                    class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
+                {/* Enlace contenedor hacia los detalles */}
+                <a href={`/games/${game.id}`} class="block cursor-pointer">
+                  {/* Imagen del Videojuego */}
+                  <div class="relative h-48 overflow-hidden bg-slate-200 dark:bg-slate-800">
+                    <img
+                      src={game.image_url}
+                      alt={game.title}
+                      class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      transition:name={`image-${game.id}`}
+                    />
 
-                  {/* Etiquetas de Plataformas */}
-                  <div class="absolute top-3 left-3 flex flex-wrap gap-1 max-w-[80%]">
-                    {platforms.map((plat) => (
-                      <span class="text-[10px] font-black px-2 py-0.5 text-white rounded bg-slate-950/80 backdrop-blur-sm border border-slate-700/50 shadow-sm uppercase tracking-wider">
-                        {plat}
-                      </span>
-                    ))}
+                    {/* Etiquetas de Plataformas */}
+                    <div class="absolute top-3 left-3 flex flex-wrap gap-1 max-w-[80%] z-10">
+                      {platforms.map((plat) => (
+                        <span class="text-[10px] font-black px-2 py-0.5 text-white rounded bg-slate-950/80 backdrop-blur-sm border border-slate-700/50 shadow-sm uppercase tracking-wider">
+                          {plat}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
 
-                {/* Detalles e Información */}
-                <div class="p-5">
-                  <h3 class="font-bold text-lg leading-tight line-clamp-1 group-hover:text-violet-500 transition-colors duration-200">
-                    {game.title}
-                  </h3>
-                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 min-h-[2rem]">
-                    {game.description}
-                  </p>
-
-                  <div class="flex items-center justify-between mt-4">
-                    <span class="text-2xl font-black">${game.price}</span>
-                    <button class="bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-4 py-2 rounded-xl text-sm font-bold transition-all hover:bg-violet-600 dark:hover:hover:bg-violet-500 dark:hover:text-white hover:scale-105 active:scale-95">
-                      Añadir ➕
-                    </button>
+                  {/* Detalles e Información */}
+                  <div class="p-5">
+                    <h3
+                      class="font-bold text-lg leading-tight line-clamp-1 group-hover:text-violet-500 transition-colors duration-200"
+                      transition:name={`title-${game.id}`}
+                    >
+                      {game.title}
+                    </h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 min-h-[2rem]">
+                      {game.description}
+                    </p>
                   </div>
+                </a>
+
+                {/* Zona de precio y botón de compra rápida externa */}
+                <div class="px-5 pb-5 pt-0 flex items-center justify-between relative z-10">
+                  <span class="text-2xl font-black dark:text-white">
+                    ${game.price}
+                  </span>
+                  <button class="bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-4 py-2 rounded-xl text-sm font-bold transition-all hover:bg-violet-600 dark:hover:bg-violet-500 dark:hover:text-white hover:scale-105 active:scale-95">
+                    Añadir ➕
+                  </button>
                 </div>
               </div>
             );
@@ -85,7 +96,7 @@ if (error) {
       }
     </div>
 
-    {/* Estado Vacío en caso de no haber juegos en Supabase */}
+    {/* Estado Vacío */}
     {
       (!games || games.length === 0) && (
         <div class="text-center py-12 border border-dashed border-slate-300 dark:border-slate-700 rounded-2xl">
@@ -99,83 +110,89 @@ if (error) {
 </Layout>
 
 <script>
-  // 1. LÓGICA DEL MODO OSCURO (Sincronizado con el botón del Navbar)
-  const toggleBtn = document.getElementById("theme-toggle-nav");
-  if (
-    localStorage.theme === "light" ||
-    (!("theme" in localStorage) &&
-      window.matchMedia("(prefers-color-scheme: light)").matches)
-  ) {
-    document.documentElement.classList.remove("dark");
-  } else {
-    document.documentElement.classList.add("dark");
-  }
-
-  toggleBtn?.addEventListener("click", () => {
-    if (document.documentElement.classList.contains("dark")) {
+  // 🔥 Usamos astro:page-load para que se ejecute correctamente en cada cambio de pantalla
+  document.addEventListener("astro:page-load", () => {
+    // 1. LÓGICA DEL MODO OSCURO
+    const toggleBtn = document.getElementById("theme-toggle-nav");
+    if (
+      localStorage.theme === "light" ||
+      (!("theme" in localStorage) &&
+        window.matchMedia("(prefers-color-scheme: light)").matches)
+    ) {
       document.documentElement.classList.remove("dark");
-      localStorage.theme = "light";
     } else {
       document.documentElement.classList.add("dark");
-      localStorage.theme = "dark";
     }
-  });
 
-  // 2. LÓGICA DE FILTRADO DINÁMICO (Animación sin romper el Grid) 🎮✨
-  const filterButtons = document.querySelectorAll(".filter-btn");
-  const gameCards = document.querySelectorAll(".game-card");
+    toggleBtn?.addEventListener("click", () => {
+      if (document.documentElement.classList.contains("dark")) {
+        document.documentElement.classList.remove("dark");
+        localStorage.theme = "light";
+      } else {
+        document.documentElement.classList.add("dark");
+        localStorage.theme = "dark";
+      }
+    });
 
-  document.querySelector('[data-filter="Todos"]')?.classList.add("active");
+    // 2. LÓGICA DE FILTRADO DINÁMICO
+    const filterButtons = document.querySelectorAll(".filter-btn");
+    const gameCards = document.querySelectorAll(".game-card");
 
-  filterButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      filterButtons.forEach((btn) => btn.classList.remove("active"));
-      button.classList.add("active");
+    // Marcar "Todos" por defecto si ninguno está activo
+    if (!document.querySelector(".filter-btn.active")) {
+      document.querySelector('[data-filter="Todos"]')?.classList.add("active");
+    }
 
-      const selectedPlatform = button.getAttribute("data-filter");
+    filterButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        filterButtons.forEach((btn) => btn.classList.remove("active"));
+        button.classList.add("active");
 
-      gameCards.forEach((card) => {
-        const cardPlatformsRaw = card.getAttribute("data-platforms") || "";
-        const cardPlatforms = cardPlatformsRaw
-          .split(",")
-          .map((p) => p.trim().toUpperCase());
-        const filterUpper = selectedPlatform
-          ? selectedPlatform.toUpperCase()
-          : "";
+        const selectedPlatform = button.getAttribute("data-filter");
 
-        const htmlCard = card as HTMLElement;
+        gameCards.forEach((card) => {
+          const cardPlatformsRaw = card.getAttribute("data-platforms") || "";
+          const cardPlatforms = cardPlatformsRaw
+            .split(",")
+            .map((p) => p.trim().toUpperCase());
+          const filterUpper = selectedPlatform
+            ? selectedPlatform.toUpperCase()
+            : "";
 
-        if (
-          selectedPlatform === "Todos" ||
-          cardPlatforms.includes(filterUpper)
-        ) {
-          htmlCard.style.display = "block";
-          setTimeout(() => {
-            htmlCard.style.opacity = "1";
-            htmlCard.style.transform = "scale(1)";
-          }, 20);
-        } else {
-          htmlCard.style.opacity = "0";
-          htmlCard.style.transform = "scale(0.7)";
-          setTimeout(() => {
-            if (htmlCard.style.opacity === "0") {
-              htmlCard.style.display = "none";
-            }
-          }, 500);
-        }
+          const htmlCard = card as HTMLElement;
+
+          if (
+            selectedPlatform === "Todos" ||
+            cardPlatforms.includes(filterUpper)
+          ) {
+            htmlCard.style.display = "block";
+            setTimeout(() => {
+              htmlCard.style.opacity = "1";
+              htmlCard.style.transform = "scale(1)";
+            }, 20);
+          } else {
+            htmlCard.style.opacity = "0";
+            htmlCard.style.transform = "scale(0.7)";
+            setTimeout(() => {
+              if (htmlCard.style.opacity === "0") {
+                htmlCard.style.display = "none";
+              }
+            }, 500);
+          }
+        });
       });
     });
-  });
 
-  // 3. EFECTO ANIMACIÓN DE CURSOR GLOW RADIAL EN TARJETAS
-  const cards = document.querySelectorAll(".game-card");
-  cards.forEach((card) => {
-    card.addEventListener("mousemove", (e: any) => {
-      const rect = card.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      (card as HTMLElement).style.setProperty("--mouse-x", `${x}px`);
-      (card as HTMLElement).style.setProperty("--mouse-y", `${y}px`);
+    // 3. EFECTO ANIMACIÓN DE CURSOR GLOW RADIAL EN TARJETAS
+    const cards = document.querySelectorAll(".game-card");
+    cards.forEach((card) => {
+      card.addEventListener("mousemove", (e: any) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        (card as HTMLElement).style.setProperty("--mouse-x", `${x}px`);
+        (card as HTMLElement).style.setProperty("--mouse-y", `${y}px`);
+      });
     });
   });
 </script>

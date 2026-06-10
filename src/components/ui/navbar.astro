@@ -33,8 +33,9 @@
 
       <div
         id="auth-nav-container"
-        class="flex items-center gap-2 border-l pl-4 border-slate-200 dark:border-slate-800"
+        class="flex items-center gap-3 border-l pl-4 border-slate-200 dark:border-slate-800"
       >
+        {/* Esqueleto de carga inicial */}
         <div
           class="w-20 h-8 bg-slate-200 dark:bg-slate-800 rounded-full animate-pulse"
         >
@@ -44,8 +45,9 @@
   </div>
 </nav>
 
-<script is:inline type="module">
-  import { supabase } from "/src/lib/supabase.ts";
+<script>
+  // ⚡ Importación directa integrada en el empaquetado de Astro
+  import { supabase } from "../../lib/supabase";
 
   async function initNavbar() {
     const container = document.getElementById("auth-nav-container");
@@ -83,7 +85,7 @@
         const username =
           profile?.username || user.email?.split("@")[0] || "User";
 
-        // 1. Cambiamos el <a> por un <div> con un ID único para controlarlo por código
+        // Inyectamos el botón de perfil y el botón de cerrar sesión juntos
         container.innerHTML = `
           <div id="btn-nav-perfil" class="flex items-center gap-3 pl-2 pr-4 py-1.5 rounded-full border border-transparent hover:border-slate-200 dark:hover:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50 active:scale-95 transition-all cursor-pointer group" title="Ir a mi perfil">
             <div class="relative w-9 h-9">
@@ -93,13 +95,39 @@
               @${username}
             </span>
           </div>
+
+          <button
+            id="logout-nav-btn"
+            class="bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white border border-rose-500/20 p-2 rounded-xl transition-all flex items-center justify-center active:scale-95 gap-1 text-xs font-bold"
+            title="Cerrar Sesión"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
+            </svg>
+            Cerrar Sesión
+          </button>
         `;
 
-        // 2. Escuchamos el clic de forma manual y obligamos al navegador a cambiar de página
+        // Escuchador de clic para ir al perfil
         const botonPerfil = document.getElementById("btn-nav-perfil");
         botonPerfil?.addEventListener("click", () => {
-          console.log("🚀 Navegando manualmente a /perfil...");
+          console.log("🚀 Navegando a /perfil...");
           window.location.href = "/perfil";
+        });
+
+        // Escuchador de clic para cerrar sesión limpiamente
+        const botonLogout = document.getElementById("logout-nav-btn");
+        botonLogout?.addEventListener("click", async () => {
+          console.log("🔒 Cerrando sesión y destruyendo cookies...");
+
+          await supabase.auth.signOut();
+
+          document.cookie =
+            "sb-access-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax; Secure";
+          document.cookie =
+            "sb-refresh-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax; Secure";
+
+          window.location.href = "/login";
         });
       } else {
         console.log("⏹️ No hay usuario activo. Mostrando botón.");
@@ -114,5 +142,8 @@
     }
   }
 
-  initNavbar();
+  // 🔥 Ejecuta el script de autenticación cada vez que se carga una nueva pantalla en la SPA
+  document.addEventListener("astro:page-load", () => {
+    initNavbar();
+  });
 </script>
