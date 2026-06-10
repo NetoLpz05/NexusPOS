@@ -1,0 +1,295 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { supabase } from "../lib/supabase";
+
+// LEER COOKIES PARA EL GUARDIÁN DEL SERVIDOR
+const accessToken = Astro.cookies.get("sb-access-token")?.value;
+const refreshToken = Astro.cookies.get("sb-refresh-token")?.value;
+
+if (accessToken && refreshToken) {
+  // Inicializamos la sesión en el servidor para verificar si es válida
+  await supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  // Si el usuario ya tiene sesión activa real en las cookies, lo mandamos directo a la tienda
+  if (user) {
+    return Astro.redirect("/");
+  }
+}
+---
+
+<Layout title="Nexus POS | Autenticación">
+  <main
+    class="min-h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4 transition-colors duration-300 relative overflow-hidden"
+  >
+    <div
+      class="absolute top-1/4 left-1/4 w-96 h-96 bg-violet-600/10 dark:bg-violet-500/10 rounded-full blur-3xl pointer-events-none"
+    >
+    </div>
+    <div
+      class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-fuchsia-600/10 dark:bg-fuchsia-500/10 rounded-full blur-3xl pointer-events-none"
+    >
+    </div>
+
+    <div
+      class="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl p-8 backdrop-blur-sm z-10 transition-all duration-300"
+    >
+      <div class="text-center mb-8">
+        <h1
+          class="text-3xl font-black tracking-wider bg-gradient-to-r from-violet-600 to-fuchsia-500 bg-clip-text text-transparent"
+        >
+          NEXUS_POS
+        </h1>
+        <p
+          id="form-subtitle"
+          class="text-sm text-slate-500 dark:text-slate-400 mt-2"
+        >
+          Ingresa a tu panel de control gaming
+        </p>
+      </div>
+
+      <form id="auth-form" class="space-y-4">
+        <div
+          id="wrapper-username"
+          class="hidden opacity-0 max-h-0 overflow-hidden transition-all duration-300 ease-out"
+        >
+          <label
+            class="block text-xs font-bold uppercase text-slate-400 mb-2 tracking-wider"
+            >Nombre de Usuario</label
+          >
+          <div class="relative">
+            <span class="absolute left-4 top-3.5 text-slate-400 text-sm">@</span
+            >
+            <input
+              type="text"
+              id="auth-username"
+              placeholder="gamer_x"
+              class="w-full pl-9 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:border-violet-500 transition-all text-sm"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label
+            class="block text-xs font-bold uppercase text-slate-400 mb-2 tracking-wider"
+            >Correo Electrónico</label
+          >
+          <input
+            type="email"
+            id="auth-email"
+            placeholder="tu@correo.com"
+            required
+            class="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:border-violet-500 transition-all text-sm"
+          />
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <label
+              class="block text-xs font-bold uppercase text-slate-400 tracking-wider"
+              >Contraseña</label
+            >
+            <a
+              href="#"
+              id="forgot-pass"
+              class="text-xs font-semibold text-violet-500 hover:underline"
+              >¿La olvidaste?</a
+            >
+          </div>
+          <input
+            type="password"
+            id="auth-password"
+            placeholder="••••••••"
+            required
+            class="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:border-violet-500 transition-all text-sm"
+          />
+        </div>
+
+        <div class="pt-2">
+          <button
+            type="submit"
+            id="submit-btn"
+            class="w-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-violet-500/20 active:scale-[0.98] transition-all text-sm"
+          >
+            Iniciar Sesión 🎮
+          </button>
+        </div>
+      </form>
+
+      <div class="relative flex py-5 items-center">
+        <div class="flex-grow border-t border-slate-200 dark:border-slate-800">
+        </div>
+        <span
+          class="flex-shrink mx-4 text-xs font-bold uppercase text-slate-400 tracking-widest"
+          >O</span
+        >
+        <div class="flex-grow border-t border-slate-200 dark:border-slate-800">
+        </div>
+      </div>
+
+      <div class="text-center">
+        <p id="toggle-text" class="text-sm text-slate-500 dark:text-slate-400">
+          ¿No tienes una cuenta?
+          <button
+            id="switch-mode-btn"
+            class="font-bold text-violet-500 hover:underline ml-1 focus:outline-none"
+          >
+            Regístrate aquí
+          </button>
+        </p>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  import { supabase } from "../lib/supabase";
+
+  let isSignUpMode = false;
+
+  const authForm = document.getElementById("auth-form") as HTMLFormElement;
+  const wrapperUsername = document.getElementById(
+    "wrapper-username",
+  ) as HTMLDivElement;
+  const usernameInput = document.getElementById(
+    "auth-username",
+  ) as HTMLInputElement;
+  const emailInput = document.getElementById("auth-email") as HTMLInputElement;
+  const passwordInput = document.getElementById(
+    "auth-password",
+  ) as HTMLInputElement;
+
+  const submitBtn = document.getElementById("submit-btn") as HTMLButtonElement;
+  const switchModeBtn = document.getElementById(
+    "switch-mode-btn",
+  ) as HTMLButtonElement;
+  const formSubtitle = document.getElementById(
+    "form-subtitle",
+  ) as HTMLParagraphElement;
+  const toggleText = document.getElementById(
+    "toggle-text",
+  ) as HTMLParagraphElement;
+  const forgotPassLink = document.getElementById(
+    "forgot-pass",
+  ) as HTMLAnchorElement;
+
+  switchModeBtn?.addEventListener("click", () => {
+    isSignUpMode = !isSignUpMode;
+
+    if (isSignUpMode) {
+      formSubtitle.innerText = "Crea tu cuenta de Nexus POS en un segundo";
+      submitBtn.innerText = "Crear Cuenta Nueva 🚀";
+      forgotPassLink.classList.add("hidden");
+      toggleText.innerHTML = `¿Ya tienes cuenta? <button id="switch-mode-btn" class="font-bold text-violet-500 hover:underline ml-1 focus:outline-none">Inicia Sesión</button>`;
+
+      wrapperUsername.classList.remove("hidden");
+      setTimeout(() => {
+        wrapperUsername.classList.remove("opacity-0", "max-h-0");
+        wrapperUsername.classList.add("opacity-100", "max-h-20");
+        usernameInput.setAttribute("required", "true");
+      }, 10);
+    } else {
+      formSubtitle.innerText = "Ingresa a tu panel de control gaming";
+      submitBtn.innerText = "Iniciar Sesión 🎮";
+      forgotPassLink.classList.remove("hidden");
+      toggleText.innerHTML = `¿No tienes una cuenta? <button id="switch-mode-btn" class="font-bold text-violet-500 hover:underline ml-1 focus:outline-none">Regístrate aquí</button>`;
+
+      usernameInput.removeAttribute("required");
+      wrapperUsername.classList.remove("opacity-100", "max-h-20");
+      wrapperUsername.classList.add("opacity-0", "max-h-0");
+      setTimeout(() => wrapperUsername.classList.add("hidden"), 300);
+    }
+
+    document
+      .getElementById("switch-mode-btn")
+      ?.addEventListener("click", () => switchModeBtn.click());
+  });
+
+  authForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+    const username = usernameInput.value.trim();
+
+    submitBtn.disabled = true;
+    submitBtn.innerText = "Procesando... ⏳";
+
+    if (isSignUpMode) {
+      // --- MODO: REGISTRO ---
+      const { data: authData, error: signUpError } = await supabase.auth.signUp(
+        {
+          email,
+          password,
+        },
+      );
+
+      if (signUpError) {
+        alert("❌ Error en el registro: " + signUpError.message);
+        resetSubmitButton();
+        return;
+      }
+
+      if (authData?.user) {
+        const { error: profileError } = await supabase.from("profiles").upsert(
+          {
+            id: authData.user.id,
+            username: username || `gamer_${Math.floor(Math.random() * 9000)}`,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" },
+        );
+
+        if (profileError) {
+          console.error(
+            "No se pudo asignar el username personalizado:",
+            profileError.message,
+          );
+        }
+      }
+
+      alert("🎉 ¡Registro exitoso! Ya puedes ingresar con tus credenciales.");
+      switchModeBtn.click();
+    } else {
+      // --- MODO: INICIAR SESIÓN ---
+      const { data, error: signInError } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+      if (signInError) {
+        alert("❌ Credenciales inválidas: " + signInError.message);
+        resetSubmitButton();
+        return;
+      }
+
+      // 🔥 EXTRACCIÓN Y GUARDADO DE TOKENS EN COOKIES FÍSICAS (Solución Definitiva)
+      if (data?.session) {
+        const maxAge = 60 * 60 * 24 * 7; // 7 días en segundos
+        document.cookie = `sb-access-token=${data.session.access_token}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
+        document.cookie = `sb-refresh-token=${data.session.refresh_token}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
+        console.log(
+          "✅ Cookies de Supabase sincronizadas con el servidor de Astro",
+        );
+      }
+
+      alert("🕹️ ¡Conexión exitosa! Bienvenido de vuelta.");
+      window.location.href = "/perfil"; // Te mandamos directo a Perfil para probar el pase
+    }
+
+    resetSubmitButton();
+  });
+
+  function resetSubmitButton() {
+    submitBtn.disabled = false;
+    submitBtn.innerText = isSignUpMode
+      ? "Crear Cuenta Nueva 🚀"
+      : "Iniciar Sesión 🎮";
+  }
+</script>
