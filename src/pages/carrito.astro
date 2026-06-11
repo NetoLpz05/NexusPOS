@@ -1,0 +1,410 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Navbar from "../components/ui/navbar.astro";
+import { supabase } from "../lib/supabase";
+
+// PROTECCIÓN TOTAL: Solo usuarios logueados pueden ver esta página
+const accessToken = Astro.cookies.get("sb-access-token")?.value;
+const refreshToken = Astro.cookies.get("sb-refresh-token")?.value;
+
+if (!accessToken || !refreshToken) {
+  return Astro.redirect("/login");
+}
+
+await supabase.auth.setSession({
+  access_token: accessToken,
+  refresh_token: refreshToken,
+});
+
+const {
+  data: { user },
+} = await supabase.auth.getUser();
+
+if (!user) {
+  return Astro.redirect("/login");
+}
+
+// Consultar los items del carrito del usuario UNIENDO con la tabla 'products'
+const { data: cartItems, error } = await supabase
+  .from("cart_items")
+  .select(
+    `
+    id,
+    quantity,
+    products (
+      id,
+      title,
+      price,
+      image_url,
+      description
+    )
+  `,
+  )
+  .eq("user_id", user.id);
+
+if (error) {
+  console.error("Error cargando carrito:", error.message);
+}
+
+// --- CÁLCULOS FINANCIEROS DEL LADO DEL SERVIDOR ---
+const IVA_RATE = 0.16; // 16% IVA
+
+// Subtotal: suma de (precio * cantidad) de cada item
+const serverSubtotal =
+  cartItems?.reduce((sum, item) => {
+    if (!item.products) return sum;
+    // 🌟 CORRECCIÓN TS (Lado del servidor): Extraer el objeto si viene como Array
+    const game = Array.isArray(item.products)
+      ? item.products[0]
+      : item.products;
+    if (!game) return sum;
+
+    return sum + game.price * item.quantity;
+  }, 0) || 0;
+
+const serverTax = serverSubtotal * IVA_RATE;
+const serverTotal = serverSubtotal + serverTax;
+
+// Formateador de moneda
+const formatMoney = (amount: number) => {
+  return amount.toFixed(2);
+};
+---
+
+<Layout title="Mi Carrito | Nexus POS Store">
+  <Navbar />
+
+  <main
+    class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 font-sans"
+    transition:animate="fade"
+  >
+    <div class="max-w-7xl mx-auto px-6 py-12">
+      <div
+        class="flex items-center gap-4 mb-10 pb-4 border-b border-slate-200 dark:border-slate-800"
+      >
+        <a
+          href="/"
+          class="text-slate-500 hover:text-violet-500 transition-colors"
+          >Tienda</a
+        >
+        <span class="text-slate-300 dark:text-slate-700">/</span>
+        <h1
+          class="text-3xl font-black bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent"
+        >
+          Resumen de tu Carrito 🛒
+        </h1>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
+        <div class="lg:col-span-2 space-y-6">
+          {
+            !cartItems || cartItems.length === 0 ? (
+              <div class="text-center py-20 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <span class="text-6xl block mb-6">🏜️</span>
+                <p class="text-lg text-slate-600 dark:text-slate-400 font-medium">
+                  Tu carrito está completamente vacío.
+                </p>
+                <p class="text-sm text-slate-500 dark:text-slate-500 mb-8">
+                  ¡Ve a buscar tu próximo desafío gaming!
+                </p>
+                <a
+                  href="/"
+                  class="bg-violet-600 hover:bg-violet-500 text-white font-bold px-6 py-3 rounded-2xl text-sm transition-all shadow-md shadow-violet-600/20"
+                >
+                  Explorar Catálogo 🕹️
+                </a>
+              </div>
+            ) : (
+              cartItems.map((item) => {
+                // 🌟 CORRECCIÓN TS (Lado del Cliente): Extraer el objeto de forma segura si viene envuelto en un Array
+                const game = Array.isArray(item.products)
+                  ? item.products[0]
+                  : item.products;
+                if (!game) return null; // Evitar renderizado si el producto falló
+
+                return (
+                  <div
+                    class="cart-item group bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm flex flex-col sm:flex-row items-center gap-5 transition-all hover:border-slate-300 dark:hover:border-slate-700"
+                    data-item-id={item.id}
+                    data-price={game.price}
+                  >
+                    {/* Portada */}
+                    <img
+                      src={game.image_url}
+                      alt={game.title}
+                      class="w-24 h-28 object-cover rounded-xl shadow bg-slate-100 dark:bg-slate-800 flex-shrink-0"
+                      transition:name={`image-${game.id}`}
+                    />
+
+                    {/* Detalles Título/Desc */}
+                    <div class="flex-grow space-y-1 text-center sm:text-left">
+                      <h3
+                        class="font-extrabold text-lg line-clamp-1 group-hover:text-violet-500 transition-colors"
+                        transition:name={`title-${game.id}`}
+                      >
+                        {game.title}
+                      </h3>
+                      <p class="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 min-h-[2rem]">
+                        {game.description || "Sin descripción disponible."}
+                      </p>
+                      <span class="text-[10px] font-black px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 uppercase tracking-widest border border-emerald-500/20 shadow-inner">
+                        Digital Key ✓
+                      </span>
+                    </div>
+
+                    {/* Precio y Acciones */}
+                    <div class="flex-shrink-0 flex flex-col items-center sm:items-end gap-3 pt-3 sm:pt-0 sm:border-l sm:pl-5 border-slate-200 dark:border-slate-800">
+                      <div class="flex items-baseline gap-1">
+                        <span class="text-2xl font-black text-slate-950 dark:text-white">
+                          ${formatMoney(game.price)}
+                        </span>
+                        <span class="text-xs text-slate-400">USD</span>
+                      </div>
+
+                      <p class="text-xs text-slate-500 dark:text-slate-500">
+                        Cantidad: {item.quantity}
+                      </p>
+
+                      <button
+                        class="remove-item-btn text-xs font-bold text-rose-500 hover:text-rose-400 flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity"
+                        data-item-id={item.id}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke-width="2"
+                          stroke="currentColor"
+                          class="w-3.5 h-3.5"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
+                          />
+                        </svg>
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )
+          }
+        </div>
+
+        {
+          cartItems && cartItems.length > 0 && (
+            <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-8 shadow-xl shadow-black/5 lg:sticky lg:top-24 space-y-6">
+              <h2 class="text-xl font-extrabold text-slate-950 dark:text-white">
+                Resumen de Orden
+              </h2>
+
+              <div class="space-y-3 text-sm text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 pb-6">
+                <div class="flex justify-between">
+                  <span>Subtotal ({cartItems.length} items)</span>
+                  <span class="font-semibold text-slate-950 dark:text-white">
+                    ${formatMoney(serverSubtotal)} USD
+                  </span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Impuesto Digital (IVA 16%) 🇲🇽</span>
+                  <span class="font-semibold text-slate-950 dark:text-white">
+                    ${formatMoney(serverTax)} USD
+                  </span>
+                </div>
+                <div class="flex justify-between text-emerald-400 font-medium text-xs">
+                  <span>Tarifa de Descarga</span>
+                  <span>GRATIS</span>
+                </div>
+              </div>
+
+              <div class="flex justify-between items-baseline pt-2">
+                <span class="text-lg font-bold text-slate-950 dark:text-white">
+                  Total
+                </span>
+                <div class="flex items-baseline gap-2">
+                  <span class="text-4xl font-black text-fuchsia-500">
+                    ${formatMoney(serverTotal)}
+                  </span>
+                  <span class="text-xs text-slate-400">USD</span>
+                </div>
+              </div>
+
+              <button
+                id="checkout-btn"
+                data-user-id={user.id}
+                data-total={serverTotal}
+                data-subtotal={serverSubtotal}
+                data-tax={serverTax}
+                class="w-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 active:scale-[0.98] text-white font-extrabold text-sm py-4 rounded-2xl transition-all shadow-lg shadow-violet-600/30 tracking-wide flex items-center justify-center gap-2"
+              >
+                🔒 Proceder al Pago Seguro
+              </button>
+
+              <div class="text-[11px] text-slate-500 text-center pt-2">
+                Al pagar aceptas los términos de licencia digital de Nexus POS.
+              </div>
+            </div>
+          )
+        }
+      </div>
+    </div>
+
+    <div
+      id="payment-overlay"
+      class="fixed inset-0 bg-black/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center gap-6 hidden opacity-0 transition-opacity duration-300"
+    >
+      <div
+        class="w-16 h-16 border-4 border-fuchsia-500 border-t-transparent rounded-full animate-spin"
+      >
+      </div>
+      <p class="text-xl font-bold text-white animate-pulse">
+        Procesando pago seguro...
+      </p>
+      <p class="text-xs text-slate-400">
+        Verificando fondos con Nexus Bank Ltd.
+      </p>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  import { supabase } from "../lib/supabase";
+
+  document.addEventListener("astro:page-load", () => {
+    // 1. LÓGICA PARA ELIMINAR ITEMS DEL CARRITO
+    const removeButtons = document.querySelectorAll(".remove-item-btn");
+
+    removeButtons.forEach((button) => {
+      button.addEventListener("click", async () => {
+        const itemId = button.getAttribute("data-item-id");
+
+        if (!confirm("¿Seguro que quieres quitar este juego de tu carrito?"))
+          return;
+
+        try {
+          const { error } = await supabase
+            .from("cart_items")
+            .delete()
+            .eq("id", itemId);
+
+          if (error) throw error;
+
+          // Animación de salida y recarga suave de la página
+          const card = button.closest(".cart-item") as HTMLElement;
+          card.style.opacity = "0";
+          card.style.transform = "scale(0.9) translateX(-20px)";
+          setTimeout(() => {
+            window.location.reload(); // Recargar para recalcular todo SSR
+          }, 300);
+        } catch (err) {
+          console.error("Error eliminando item:", err);
+          alert("Error al intentar quitar el producto.");
+        }
+      });
+    });
+
+    // 2. LÓGICA DE SIMULACIÓN DE PAGO (CHECKOUT)
+    const checkoutBtn = document.getElementById("checkout-btn");
+    const overlay = document.getElementById("payment-overlay");
+
+    // 🔥 FUNCIÓN PARA GENERAR CLAVES DE ACTIVACIÓN (Ejemplo: ABCD-EFGH-IJKL)
+    const generateActivationKey = () => {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Excluimos 'O', '0', '1', 'I' para evitar confusiones visuales
+      const segment = () =>
+        Array.from(
+          { length: 4 },
+          () => chars[Math.floor(Math.random() * chars.length)],
+        ).join("");
+      return `${segment()}-${segment()}-${segment()}`;
+    };
+
+    checkoutBtn?.addEventListener("click", async () => {
+      if (
+        !confirm(
+          "💳 ¿Proceder con la simulación de pago seguro de Nexus POS por el total indicado?",
+        )
+      )
+        return;
+
+      const userId = checkoutBtn.getAttribute("data-user-id");
+      const total = parseFloat(checkoutBtn.getAttribute("data-total") || "0");
+      const subtotal = parseFloat(
+        checkoutBtn.getAttribute("data-subtotal") || "0",
+      );
+      const tax = parseFloat(checkoutBtn.getAttribute("data-tax") || "0");
+
+      // Mostrar overlay de carga
+      overlay?.classList.remove("hidden");
+      setTimeout(() => overlay?.classList.remove("opacity-0"), 10);
+
+      try {
+        // --- PROCESO CENTRAL DE ORDEN ---
+
+        // 1. Obtener los items del carrito actuales
+        const { data: cartItems, error: cartError } = await supabase
+          .from("cart_items")
+          .select("product_id, products(price), quantity")
+          .eq("user_id", userId);
+
+        if (cartError || !cartItems || cartItems.length === 0)
+          throw new Error("Carrito vacío o error");
+
+        // 2. Crear la Cabecera de la Orden (orders)
+        const { data: orderData, error: orderError } = await supabase
+          .from("orders")
+          .insert([{ user_id: userId, subtotal, tax, total, status: "paid" }])
+          .select("id")
+          .single();
+
+        if (orderError) throw orderError;
+        const orderId = orderData.id;
+
+        // 3. Crear los Detalles de la Orden con sus Claves Digitales (order_items)
+        const orderItemsToInsert = cartItems.map((item) => {
+          const g = Array.isArray(item.products)
+            ? item.products[0]
+            : item.products;
+          return {
+            order_id: orderId,
+            product_id: item.product_id,
+            price_at_purchase: g ? g.price : 0,
+            quantity: item.quantity,
+            activation_key: generateActivationKey(), // 🔥 ¡Aquí inyectamos la clave única!
+          };
+        });
+
+        const { error: itemsError } = await supabase
+          .from("order_items")
+          .insert(orderItemsToInsert);
+
+        if (itemsError) throw itemsError;
+
+        // 4. Vaciar el carrito de compras del usuario
+        const { error: clearError } = await supabase
+          .from("cart_items")
+          .delete()
+          .eq("user_id", userId);
+
+        if (clearError) throw clearError;
+
+        // --- PAGO COMPLETADO EXITOSAMENTE ---
+        setTimeout(() => {
+          overlay?.classList.add("hidden");
+          alert(
+            `🎉 ¡PAGO COMPLETADO CON ÉXITO!\n\nGracias por tu compra en Nexus POS.\n\nTus licencias digitales ya han sido generadas. Puedes revisarlas y copiar tus códigos desde la sección "Mi Perfil".`,
+          );
+
+          window.location.replace("/perfil"); // Redirige directo a su historial para ver las keys
+        }, 2500);
+      } catch (err) {
+        console.error("Error crítico durante checkout:", err);
+        overlay?.classList.add("hidden");
+        alert(
+          "❌ Ocurrió un error crítico durante el procesamiento del pago. Tu carrito no ha sido modificado. Inténtalo de nuevo.",
+        );
+      }
+    });
+  });
+</script>

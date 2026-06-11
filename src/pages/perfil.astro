@@ -50,12 +50,31 @@ const favoriteGames = favoritesData
   ? favoritesData.map((f) => f.products).filter(Boolean)
   : [];
 
-// 4. Traer el historial de compras oficial ordenado por fecha reciente
-const { data: purchaseHistory } = await supabase
-  .from("purchases")
-  .select("*")
+// 4. Traer el historial de compras oficial vinculando orders, order_items y products (Incluyendo image_url)
+const { data: purchaseHistory, error: purchaseError } = await supabase
+  .from("orders")
+  .select(
+    `
+    id,
+    created_at,
+    total,
+    status,
+    order_items (
+      quantity,
+      activation_key,
+      products (
+        title,
+        image_url
+      )
+    )
+  `,
+  )
   .eq("user_id", user.id)
   .order("created_at", { ascending: false });
+
+if (purchaseError) {
+  console.error("Error cargando historial de pedidos:", purchaseError.message);
+}
 ---
 
 <Layout title="Nexus POS | Mi Perfil">
@@ -276,7 +295,6 @@ const { data: purchaseHistory } = await supabase
           ) : (
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {favoriteGames.map((game) => {
-                // Validación para evitar errores si category viene en formato plano o nulo
                 let categoriesArray = [];
                 try {
                   categoriesArray =
@@ -351,10 +369,10 @@ const { data: purchaseHistory } = await supabase
                       Fecha
                     </th>
                     <th class="p-4 font-black text-xs uppercase text-slate-500">
-                      Productos
+                      Productos Comprados / Claves de Activación
                     </th>
                     <th class="p-4 font-black text-xs uppercase text-slate-500 text-right">
-                      Total
+                      Total Pagado
                     </th>
                     <th class="p-4 font-black text-xs uppercase text-slate-500 text-center">
                       Estado
@@ -362,28 +380,107 @@ const { data: purchaseHistory } = await supabase
                   </tr>
                 </thead>
                 <tbody>
-                  {purchaseHistory.map((ticket) => (
-                    <tr class="border-b border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-950/30 transition-colors">
-                      <td class="p-4 font-mono font-bold text-sm text-violet-500">
-                        {ticket.id}
-                      </td>
-                      <td class="p-4 text-sm text-slate-600 dark:text-slate-400">
-                        {new Date(ticket.created_at).toLocaleDateString(
-                          "es-MX",
-                          { day: "2-digit", month: "short", year: "numeric" },
-                        )}
-                      </td>
-                      <td class="p-4 text-sm font-medium">{ticket.items}</td>
-                      <td class="p-4 text-sm font-black text-right">
-                        ${ticket.total}
-                      </td>
-                      <td class="p-4 text-center">
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50">
-                          {ticket.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {purchaseHistory.map((ticket) => {
+                    const itemsArray = Array.isArray(ticket.order_items)
+                      ? ticket.order_items
+                      : [];
+
+                    const isCompleted =
+                      ticket.status?.toLowerCase() === "completed" ||
+                      ticket.status?.toLowerCase() === "paid" ||
+                      ticket.status?.toLowerCase() === "pagado" ||
+                      ticket.status?.toLowerCase() === "aprobado";
+
+                    const isPending =
+                      ticket.status?.toLowerCase() === "pending" ||
+                      ticket.status?.toLowerCase() === "pendiente";
+
+                    return (
+                      <tr class="border-b border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-950/30 transition-colors">
+                        <td
+                          class="p-4 font-mono font-bold text-xs text-violet-500 max-w-[120px] truncate"
+                          title={ticket.id}
+                        >
+                          #{ticket.id.toString().substring(0, 8)}...
+                        </td>
+                        <td class="p-4 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                          {new Date(ticket.created_at).toLocaleDateString(
+                            "es-MX",
+                            {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            },
+                          )}
+                        </td>
+                        <td class="p-4 text-sm">
+                          <div class="space-y-2">
+                            {itemsArray.map((item: any) => {
+                              const game = Array.isArray(item.products)
+                                ? item.products[0]
+                                : item.products;
+                              return (
+                                <div class="flex flex-col sm:flex-row sm:items-center gap-3 bg-slate-50 dark:bg-slate-950 p-2 rounded-lg border border-slate-200/60 dark:border-slate-800/60">
+                                  {/* 📸 Miniatura del Videojuego */}
+                                  <div class="w-12 h-14 rounded-md overflow-hidden bg-slate-200 dark:bg-slate-800 flex-shrink-0 shadow-sm border border-slate-300/40 dark:border-slate-700/40">
+                                    <img
+                                      src={
+                                        game?.image_url ||
+                                        "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070"
+                                      }
+                                      alt={game?.title}
+                                      class="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                                    />
+                                  </div>
+
+                                  {/* Título y Llave Digital */}
+                                  <div class="flex flex-col gap-1.5 justify-center">
+                                    <span class="font-bold text-slate-900 dark:text-white leading-tight">
+                                      {game?.title || "Producto"}{" "}
+                                      <span class="text-xs text-slate-400 font-normal">
+                                        (x{item.quantity})
+                                      </span>
+                                    </span>
+                                    <code
+                                      class="text-xs px-2 py-0.5 rounded bg-violet-500/10 text-violet-400 border border-violet-500/20 font-mono tracking-wider select-all w-fit cursor-pointer hover:bg-violet-500/20 transition-all"
+                                      title="Haz doble clic para seleccionar el código"
+                                    >
+                                      🔑{" "}
+                                      {item.activation_key || "PROCESANDO_KEY"}
+                                    </code>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </td>
+                        <td class="p-4 text-sm font-black text-right text-slate-900 dark:text-white whitespace-nowrap">
+                          $
+                          {Number(ticket.total).toLocaleString("es-MX", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </td>
+                        <td class="p-4 text-center whitespace-nowrap">
+                          {isCompleted ? (
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50">
+                              🟢 Entregado
+                            </span>
+                          ) : isPending ? (
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50">
+                              🟡 Pendiente
+                            </span>
+                          ) : (
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50">
+                              🔴 Cancelado
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

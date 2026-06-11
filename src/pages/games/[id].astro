@@ -26,12 +26,25 @@ if (error || !game) {
 const accessToken = Astro.cookies.get("sb-access-token")?.value;
 const refreshToken = Astro.cookies.get("sb-refresh-token")?.value;
 let userLoggedIn = false;
+let isAlreadyFavorited = false; // 🔥 Estado para saber si ya es favorito en la DB
 
 if (accessToken && refreshToken) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (user) userLoggedIn = true;
+  if (user) {
+    userLoggedIn = true;
+
+    // 🔥 Consultamos a Supabase si existe ya este registro
+    const { data: favData } = await supabase
+      .from("favorites")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("product_id", game.id)
+      .maybeSingle();
+
+    if (favData) isAlreadyFavorited = true;
+  }
 }
 ---
 
@@ -196,10 +209,19 @@ if (accessToken && refreshToken) {
             id="fav-btn"
             data-game-id={game.id}
             data-logged={userLoggedIn ? "true" : "false"}
-            class="w-full bg-slate-950 hover:bg-slate-800/80 active:scale-[0.98] text-slate-200 border border-slate-800 font-bold text-sm py-3.5 rounded-2xl transition-all flex items-center justify-center gap-2"
+            data-favorited={isAlreadyFavorited ? "true" : "false"}
+            class={`w-full active:scale-[0.98] font-bold text-sm py-3.5 rounded-2xl transition-all flex items-center justify-center gap-2 border ${
+              isAlreadyFavorited
+                ? "border-rose-500/30 bg-rose-950/20 text-rose-400"
+                : "bg-slate-950 hover:bg-slate-800/80 text-slate-200 border border-slate-800"
+            }`}
           >
-            <span id="fav-icon">🤍</span>
-            <span id="fav-text">Añadir a Favoritos</span>
+            <span id="fav-icon">{isAlreadyFavorited ? "❤️" : "🤍"}</span>
+            <span id="fav-text"
+              >{
+                isAlreadyFavorited ? "¡En tus Favoritos!" : "Añadir a Favoritos"
+              }</span
+            >
           </button>
         </div>
 
@@ -219,17 +241,25 @@ if (accessToken && refreshToken) {
 </Layout>
 
 <script>
+  // 🔥 Importamos la instancia de Supabase en el cliente
+  import { supabase } from "../../lib/supabase";
+
   // Escuchamos el evento nativo de Astro para asegurar que el JS corra siempre de forma óptima.
   document.addEventListener("astro:page-load", () => {
     const favBtn = document.getElementById("fav-btn");
     const favIcon = document.getElementById("fav-icon");
     const favText = document.getElementById("fav-text");
+    const buyBtn = document.getElementById("buy-btn");
 
-    let isFavorited = false;
+    if (!favBtn) return;
 
-    favBtn?.addEventListener("click", () => {
-      const isLogged = favBtn.getAttribute("data-logged") === "true";
+    // Leer estados reactivos pasados del servidor HTML
+    const isLogged = favBtn.getAttribute("data-logged") === "true";
+    let isFavorited = favBtn.getAttribute("data-favorited") === "true";
+    const gameId = favBtn.getAttribute("data-game-id");
 
+    // --- 🤍 LÓGICA DE FAVORITOS ---
+    favBtn.addEventListener("click", async () => {
       if (!isLogged) {
         alert(
           "🔒 ¡Inicia sesión para guardar este videojuego en tu lista de favoritos!",
@@ -238,29 +268,116 @@ if (accessToken && refreshToken) {
         return;
       }
 
-      isFavorited = !isFavorited;
+      // 🕒 Bloqueamos clicks repetidos rápidos mientras responde Supabase
+      favBtn.style.pointerEvents = "none";
 
-      if (isFavorited) {
-        if (favIcon) favIcon.textContent = "❤️";
-        if (favText) favText.textContent = "¡En tus Favoritos!";
-        favBtn.classList.add(
-          "border-rose-500/30",
-          "bg-rose-950/20",
-          "text-rose-400",
-        );
-      } else {
-        if (favIcon) favIcon.textContent = "🤍";
-        if (favText) favText.textContent = "Añadir a Favoritos";
-        favBtn.classList.remove(
-          "border-rose-500/30",
-          "bg-rose-950/20",
-          "text-rose-400",
-        );
+      // Obtener el ID del cliente logueado
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        favBtn.style.pointerEvents = "auto";
+        return;
       }
+
+      if (!isFavorited) {
+        // --- ➕ AGREGAR A LA BASE DE DATOS ---
+        const { error } = await supabase
+          .from("favorites")
+          .insert([{ user_id: user.id, product_id: gameId }]);
+
+        if (!error) {
+          isFavorited = true;
+          if (favIcon) favIcon.textContent = "❤️";
+          if (favText) favText.textContent = "¡En tus Favoritos!";
+
+          favBtn.classList.remove(
+            "bg-slate-950",
+            "hover:bg-slate-800/80",
+            "text-slate-200",
+            "border-slate-800",
+          );
+          favBtn.classList.add(
+            "border-rose-500/30",
+            "bg-rose-950/20",
+            "text-rose-400",
+          );
+        } else {
+          console.error("❌ Error insertando favorito:", error.message);
+        }
+      } else {
+        // --- ➖ ELIMINAR DE LA BASE DE DATOS ---
+        const { error } = await supabase
+          .from("favorites")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("product_id", gameId);
+
+        if (!error) {
+          isFavorited = false;
+          if (favIcon) favIcon.textContent = "🤍";
+          if (favText) favText.textContent = "Añadir a Favoritos";
+
+          favBtn.classList.remove(
+            "border-rose-500/30",
+            "bg-rose-950/20",
+            "text-rose-400",
+          );
+          favBtn.classList.add(
+            "bg-slate-950",
+            "hover:bg-slate-800/80",
+            "text-slate-200",
+            "border-slate-800",
+          );
+        } else {
+          console.error("❌ Error eliminando favorito:", error.message);
+        }
+      }
+
+      // Sincronizar el nuevo estado en el DOM y liberar el botón
+      favBtn.setAttribute("data-favorited", isFavorited ? "true" : "false");
+      favBtn.style.pointerEvents = "auto";
     });
 
-    document.getElementById("buy-btn")?.addEventListener("click", () => {
-      alert("🛍️ ¡Juego añadido al carrito de compras exitosamente!");
+    // --- 🛒 🔥 LÓGICA DE AÑADIR AL CARRITO ---
+    buyBtn?.addEventListener("click", async () => {
+      if (!isLogged) {
+        alert("🔒 ¡Inicia sesión para añadir este videojuego a tu carrito!");
+        window.location.href = "/login";
+        return;
+      }
+
+      // Congelar el botón mientras se ejecuta la consulta
+      buyBtn.style.pointerEvents = "none";
+      buyBtn.innerHTML = `Añadiendo... ⏳`;
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) throw new Error("Sesión de usuario no válida");
+
+        // Usamos upsert para insertar o manejar conflictos si ya existe en el carrito
+        const { error } = await supabase
+          .from("cart_items")
+          .upsert(
+            { user_id: user.id, product_id: parseInt(gameId), quantity: 1 },
+            { onConflict: "user_id,product_id" },
+          );
+
+        if (error) throw error;
+
+        alert("🎉 ¡Juego añadido exitosamente al carrito!");
+
+        // Redirigir de inmediato al resumen de compras
+        window.location.href = "/carrito";
+      } catch (err) {
+        console.error("❌ Error al registrar en carrito:", err);
+        alert("Hubo un error al procesar el carrito. Inténtalo de nuevo.");
+      } finally {
+        buyBtn.style.pointerEvents = "auto";
+        buyBtn.innerHTML = `Añadir al Carrito 🛒`;
+      }
     });
   });
 </script>
