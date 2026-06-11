@@ -65,7 +65,7 @@
             class="text-[10px] text-violet-100 flex items-center gap-1 font-medium"
           >
             <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"
-            ></span> En línea con Gemini API
+            ></span> En línea para ayudarte
           </span>
         </div>
       </div>
@@ -84,8 +84,9 @@
         <div
           class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-slate-800 dark:text-slate-200 text-xs px-3 py-2.5 rounded-2xl rounded-tl-none shadow-sm leading-relaxed"
         >
-          ¡Hola! 👋 Soy tu asistente inteligente de **Nexus POS**. ¿Tienes dudas
-          con el catálogo, tus compras o necesitas soporte técnico? ¡Pregúntame!
+          ¡Hola! 👋 Bienvenido a **Nexus POS**. ¿Tienes alguna duda sobre
+          juegos, keys de activación o soporte técnico? ¡Pregúntame lo que
+          necesites!
         </div>
       </div>
     </div>
@@ -167,7 +168,7 @@
       scrollToBottom();
 
       try {
-        // Petición directa a tu servidor FastAPI local en el puerto 8000
+        // Redirección corregida al puerto 8000 de tu Backend de Python
         const response = await fetch("http://localhost:8000/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -177,18 +178,18 @@
         const data = await response.json();
         removeTypingIndicator(typingId);
 
-        if (response.ok) {
+        if (response.ok && data.response) {
+          // Captura de la respuesta inyectada con las instrucciones de tu backend
           appendMessage(data.response, "bot");
         } else {
-          appendMessage(
-            "Disculpa, tengo problemas para conectarme con mi núcleo de IA. Inténtalo de nuevo.",
-            "bot",
-          );
+          const errorMsg = data.detail || "Error interno del servidor.";
+          appendMessage(`❌ **Error**: ${errorMsg}`, "bot");
         }
       } catch (error) {
         removeTypingIndicator(typingId);
+        console.error("Error al conectar con el backend:", error);
         appendMessage(
-          "Error de conexión con el servidor de soporte técnico.",
+          "❌ **Error de comunicación**: No se pudo conectar con el backend de Python. Asegúrate de que Uvicorn esté corriendo en el puerto 8000.",
           "bot",
         );
       }
@@ -203,7 +204,6 @@
           ? "flex items-start gap-2 justify-end max-w-[85%] ml-auto"
           : "flex items-start gap-2 max-w-[85%]";
 
-      // Conversión simple a formato Markdown para texto en negrita e inline code devuelto por Gemini
       const formattedText = text
         .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
         .replace(
@@ -215,7 +215,7 @@
         sender === "user"
           ? `<div class="bg-gradient-to-tr from-violet-600 to-fuchsia-500 text-white text-xs px-3 py-2.5 rounded-2xl rounded-tr-none shadow-sm leading-relaxed">${formattedText}</div>`
           : `<div class="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-xs flex-shrink-0 shadow-sm">🤖</div>
-           <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-slate-800 dark:text-slate-200 text-xs px-3 py-2.5 rounded-2xl rounded-tl-none shadow-sm leading-relaxed">${formattedText}</div>`;
+             <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-slate-800 dark:text-slate-200 text-xs px-3 py-2.5 rounded-2xl rounded-tl-none shadow-sm leading-relaxed">${formattedText}</div>`;
       botMessages.appendChild(messageDiv);
     }
 

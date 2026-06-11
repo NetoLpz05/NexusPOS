@@ -1,65 +1,92 @@
 import os
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from google import genai
-from google.genai import types
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from openai import OpenAI  # 👈 Cambiamos el SDK de Google por el de OpenAI
 
-# Cargar las variables de entorno antes de inicializar cualquier cliente
+# Cargar variables desde el archivo .env
 load_dotenv()
 
 app = FastAPI()
 
+# Configuración de CORS para comunicarse con Astro (puerto 4321)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["http://localhost:4321", "http://127.0.0.1:4321"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# El SDK de google-genai busca automáticamente la variable "GEMINI_API_KEY" en el entorno
-try:
-    client = genai.Client()
-except Exception as e:
-    print(f"Error crítico: No se pudo inicializar el cliente de Gemini. Verifica tu GEMINI_API_KEY. Detalle: {e}")
+class ChatRequest(BaseModel):
+    message: str
 
-class ChatMessage(BaseModel):
-    message: str    
-    user_id: str = None
+# Definimos las instrucciones del sistema para recuperar la identidad del bot
+NEXUS_BOT_INSTRUCTIONS = """
+Eres Nexus AI, el asistente virtual oficial de la plataforma Nexus POS (una tienda multiplataforma de videojuegos).
+Tu objetivo es ayudar amablemente a los usuarios con dudas sobre:
+1. Juegos disponibles en la tienda.
+2. Keys (claves) de activación de productos.
+3. Historial de compras y soporte técnico básico de la plataforma.
 
-SYSTEM_INSTRUCTION = """
-Eres NEXUS AI, el asistente virtual oficial de 'Nexus POS', una tienda premium de videojuegos digitales.
-Tu objetivo es resolver dudas de los usuarios con un tono tecnológico, entusiasta, amigable y sumamente eficiente.
-
-Sigue estrictamente estas directrices:
-1. INFORMACIÓN SOBRE PRODUCTOS: Si te preguntan qué juegos hay disponibles, di que ofreces un catálogo variado de claves digitales (Steam, Epic Games, PlayStation, Xbox) con los mejores precios del mercado y que pueden explorarlos en la tienda principal.
-2. HISTORIAL Y CÓDIGOS (KEYS): Si el usuario pregunta por sus códigos adquiridos, indícale de forma clara que debe ir a su 'Perfil' (haciendo clic en su avatar arriba a la derecha) y seleccionar la pestaña 'Historial de Compras'.
-3. GUARDAR FAVORITOS: Explícales que pueden marcar cualquier juego con el ícono del corazón (❤️) para tenerlo guardado en la sección 'Mis Favoritos' de su perfil.
-4. SOPORTE TÉCNICO Y ERRORES DE PAGO: Si mencionan fallas en el carrito, errores de pago (como el aviso de 'error crítico' o códigos 403), o problemas de autenticación, diles amablemente que se trata de un problema técnico temporal y que pueden contactar de inmediato a soporte@nexuspos.com para solucionarlo de forma personalizada.
-5. CONCISIÓN: Mantén tus respuestas breves, estructuradas con viñetas si es necesario, y usa emojis relacionados con el gaming (🎮, 📦, 🔑, 🤖). Nunca salgas de tu rol de asistente de Nexus POS.
+Reglas de comportamiento:
+- Responde siempre en español de forma entusiasta, clara y concisa.
+- Usa emoticonos relacionados con videojuegos de forma moderada (🎮, 🕹️, 👋, 🚀).
+- Usa texto en negrita (**texto**) para resaltar elementos importantes o nombres de juegos.
+- Si el usuario te saluda, dale la bienvenida formal a Nexus POS.
+- Si te preguntan algo totalmente ajeno a los videojuegos o a la tienda, redirige la conversación amablemente hacia el ecosistema de Nexus POS.
 """
 
 @app.post("/api/chat")
-async def chat_with_ia(data: ChatMessage):
-    if not data.message.strip():
-        raise HTTPException(status_code=400, detail="El mensaje no puede estar vacío.")
-        
-    try:
-        # Llamada oficial al modelo gemini-2.5-flash usando la nueva arquitectura de Google GenAI
-        response = client.models.generate_content(
-            model='gemini-3.0-flash',
-            contents=data.message,
-            config={
-                'system_instruction': SYSTEM_INSTRUCTION,
-                'temperature': 0.7
-            }
+async def chat_endpoint(request: ChatRequest):
+    api_key = os.getenv("GEMINI_API_KEY")
+    
+    # 🔬 INSPECTOR DE CONFIGURACIÓN OPENROUTER
+    print("\n" + "="*50)
+    print("🤖 CONFIGURACIÓN DETECTADA PARA OPENROUTER:")
+    print(f"¿La variable existe?: {api_key is not None}")
+    if api_key:
+        print(f"Longitud: {len(api_key)} caracteres")
+        print(f"¿Es formato OpenRouter? (sk-or-v1): {api_key.startswith('sk-or-v1')}")
+    print("="*50 + "\n")
+    
+    if not api_key:
+        raise HTTPException(
+            status_code=500, 
+            detail="La API Key no está configurada en el archivo .env."
         )
         
-        # Devolvemos la respuesta formateada en JSON
-        return {"response": response.text}
+    try:
+        # Inicializamos el cliente apuntando a los servidores de OpenRouter
+        client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=api_key,
+        )
+        
+        # Llamada estructurada al estilo OpenAI/OpenRouter buscando a Gemini
+        response = client.chat.completions.create(
+            model="google/gemini-2.5-flash",  # Id del modelo en OpenRouter
+            messages=[
+                {
+                    "role": "system",
+                    "content": NEXUS_BOT_INSTRUCTIONS
+                },
+                {
+                    "role": "user",
+                    "content": request.message
+                }
+            ],
+            temperature=0.7
+        )
+        
+        # Extraemos el texto de la respuesta
+        bot_response = response.choices[0].message.content
+        return {"response": bot_response}
         
     except Exception as e:
-        print(f"Error interno con Gemini API: {e}")
-        raise HTTPException(status_code=500, detail="Error al procesar tu solicitud con el servicio de IA.")
+        print(f"❌ Error en OpenRouter/Gemini: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error interno al procesar con OpenRouter: {str(e)}"
+        )
