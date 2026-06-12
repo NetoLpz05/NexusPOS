@@ -50,16 +50,16 @@
 </nav>
 
 <script>
-  // ⚡ Importación directa integrada en el empaquetado de Astro
+  //Importación directa integrada en el empaquetado de Astro
   import { supabase } from "../../lib/supabase";
+  import { buildCookie, isSecureContext } from "../../lib/cookies";
 
-  // 🔄 Función para actualizar el contador físico de videojuegos en el carrito
-  async function updateCartCount(userId) {
+  //Función para actualizar el contador físico de videojuegos en el carrito
+  async function updateCartCount(userId: string) {
     const cartCount = document.getElementById("cart-count");
     if (!cartCount) return;
 
     try {
-      // Hacemos un conteo exacto y eficiente apuntando a la tabla filtrada por usuario
       const { count, error } = await supabase
         .from("cart_items")
         .select("id", { count: "exact", head: true })
@@ -103,7 +103,6 @@
       if (user) {
         console.log("👤 Usuario devuelto por Supabase:", user.id);
 
-        // Disparar la actualización del carrito al detectar sesión
         updateCartCount(user.id);
 
         const { data: profile, error: profileError } = await supabase
@@ -123,7 +122,6 @@
         const username =
           profile?.username || user.email?.split("@")[0] || "User";
 
-        // Inyectamos el botón de perfil y el botón de cerrar sesión juntos
         container.innerHTML = `
           <div id="btn-nav-perfil" class="flex items-center gap-3 pl-2 pr-4 py-1.5 rounded-full border border-transparent hover:border-slate-200 dark:hover:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50 active:scale-95 transition-all cursor-pointer group" title="Ir a mi perfil">
             <div class="relative w-9 h-9">
@@ -146,24 +144,30 @@
           </button>
         `;
 
-        // Escuchador de clic para ir al perfil
+        // Listener de clic para ir al perfil
         const botonPerfil = document.getElementById("btn-nav-perfil");
         botonPerfil?.addEventListener("click", () => {
           console.log("🚀 Navegando a /perfil...");
           window.location.href = "/perfil";
         });
 
-        // Escuchador de clic para cerrar sesión limpiamente
+        // Listener de clic para cerrar sesión limpiamente
         const botonLogout = document.getElementById("logout-nav-btn");
         botonLogout?.addEventListener("click", async () => {
           console.log("🔒 Cerrando sesión y destruyendo cookies...");
 
           await supabase.auth.signOut();
 
-          document.cookie =
-            "sb-access-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax; Secure";
-          document.cookie =
-            "sb-refresh-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax; Secure";
+          const secure = isSecureContext();
+
+          document.cookie = buildCookie("sb-access-token", "", {
+            expires: "Thu, 01 Jan 1970 00:00:00 GMT",
+            secure,
+          });
+          document.cookie = buildCookie("sb-refresh-token", "", {
+            expires: "Thu, 01 Jan 1970 00:00:00 GMT",
+            secure,
+          });
 
           window.location.href = "/login";
         });
@@ -182,7 +186,7 @@
     }
   }
 
-  // 🔥 Ejecuta el script de autenticación cada vez que se carga una nueva pantalla en la SPA
+  // Ejecuta el script de autenticación cada vez que se carga una nueva pantalla en la SPA
   document.addEventListener("astro:page-load", () => {
     initNavbar();
   });

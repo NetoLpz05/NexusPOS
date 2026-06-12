@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from openai import OpenAI  # 👈 Cambiamos el SDK de Google por el de OpenAI
+from openai import OpenAI
 
 # Cargar variables desde el archivo .env
 load_dotenv()
@@ -22,7 +22,7 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     message: str
 
-# Definimos las instrucciones del sistema para recuperar la identidad del bot
+# Instrucciones del sistema para recuperar la identidad del bot
 NEXUS_BOT_INSTRUCTIONS = """
 Eres Nexus AI, el asistente virtual oficial de la plataforma Nexus POS (una tienda multiplataforma de videojuegos).
 Tu objetivo es ayudar amablemente a los usuarios con dudas sobre:
@@ -42,7 +42,7 @@ Reglas de comportamiento:
 async def chat_endpoint(request: ChatRequest):
     api_key = os.getenv("GEMINI_API_KEY")
     
-    # 🔬 INSPECTOR DE CONFIGURACIÓN OPENROUTER
+    # INSPECTOR DE CONFIGURACIÓN OPENROUTER
     print("\n" + "="*50)
     print("🤖 CONFIGURACIÓN DETECTADA PARA OPENROUTER:")
     print(f"¿La variable existe?: {api_key is not None}")
@@ -58,7 +58,7 @@ async def chat_endpoint(request: ChatRequest):
         )
         
     try:
-        # Inicializamos el cliente apuntando a los servidores de OpenRouter
+        # Se inicializa el cliente apuntando a los servidores de OpenRouter
         client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=api_key,
@@ -80,7 +80,7 @@ async def chat_endpoint(request: ChatRequest):
             temperature=0.7
         )
         
-        # Extraemos el texto de la respuesta
+        # Se extrae el texto de la respuesta
         bot_response = response.choices[0].message.content
         return {"response": bot_response}
         

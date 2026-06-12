@@ -17,7 +17,7 @@ if (accessToken && refreshToken) {
   } = await supabase.auth.getUser();
 
   if (user) {
-    // Consultamos el rol en el backend para saber a dónde redirigir al usuario ya logueado
+    // Se consulta el rol en el backend para saber a dónde redirigir al usuario ya logueado
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
@@ -159,6 +159,7 @@ if (accessToken && refreshToken) {
 
 <script>
   import { supabase } from "../lib/supabase";
+  import { buildSessionCookie, isSecureContext } from "../lib/cookies";
 
   let isSignUpMode = false;
 
@@ -282,11 +283,23 @@ if (accessToken && refreshToken) {
       // Sincronizar tokens en cookies físicas para la lectura SSR
       if (data?.session) {
         const maxAge = 60 * 60 * 24 * 7; // 7 días
-        document.cookie = `sb-access-token=${data.session.access_token}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
-        document.cookie = `sb-refresh-token=${data.session.refresh_token}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
+        const secure = isSecureContext();
+
+        document.cookie = buildSessionCookie(
+          "sb-access-token",
+          data.session.access_token,
+          maxAge,
+          secure,
+        );
+        document.cookie = buildSessionCookie(
+          "sb-refresh-token",
+          data.session.refresh_token,
+          maxAge,
+          secure,
+        );
       }
 
-      // 🔥 CONSULTA CLIENTE DE ROL E ENRUTAMIENTO INTELIGENTE
+      // CONSULTA CLIENTE DE ROL E ENRUTAMIENTO INTELIGENTE
       if (data?.user) {
         const { data: profile, error: profileError } = await supabase
           .from("profiles")

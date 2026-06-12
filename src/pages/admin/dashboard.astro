@@ -318,22 +318,20 @@ const { data: games } = await supabase
     );
     const description = (
       document.getElementById("game-description") as HTMLTextAreaElement
-    ).value.trim(); // 🔥 Capturar descripción
+    ).value.trim();
     const imageUrl = (
       document.getElementById("game-image") as HTMLInputElement
     ).value.trim();
 
-    const { error } = await supabase
-      .from("products")
-      .insert([
-        {
-          title,
-          price,
-          description,
-          image_url: imageUrl,
-          category: ["Videojuegos"],
-        },
-      ]); // 🔥 Añadido 'description'
+    const { error } = await supabase.from("products").insert([
+      {
+        title,
+        price,
+        description,
+        image_url: imageUrl,
+        category: ["Videojuegos"],
+      },
+    ]);
 
     if (error) {
       alert("❌ Error al insertar el producto: " + error.message);
@@ -379,7 +377,7 @@ const { data: games } = await supabase
   ) as HTMLInputElement;
   const editDescriptionInput = document.getElementById(
     "edit-game-description",
-  ) as HTMLTextAreaElement; // 🔥 Input de descripción
+  ) as HTMLTextAreaElement;
   const editImageInput = document.getElementById(
     "edit-game-image",
   ) as HTMLInputElement;
@@ -391,7 +389,7 @@ const { data: games } = await supabase
       editIdInput.value = btn.getAttribute("data-id") || "";
       editTitleInput.value = btn.getAttribute("data-title") || "";
       editPriceInput.value = btn.getAttribute("data-price") || "";
-      editDescriptionInput.value = btn.getAttribute("data-description") || ""; // 🔥 Rellenar descripción
+      editDescriptionInput.value = btn.getAttribute("data-description") || "";
       editImageInput.value = btn.getAttribute("data-image") || "";
 
       editModal.classList.remove("hidden");
@@ -412,12 +410,12 @@ const { data: games } = await supabase
     const id = editIdInput.value;
     const title = editTitleInput.value.trim();
     const price = parseFloat(editPriceInput.value);
-    const description = editDescriptionInput.value.trim(); // 🔥 Capturar descripción editada
+    const description = editDescriptionInput.value.trim();
     const imageUrl = editImageInput.value.trim();
 
     const { error } = await supabase
       .from("products")
-      .update({ title, price, description, image_url: imageUrl }) // 🔥 Añadido 'description' al update
+      .update({ title, price, description, image_url: imageUrl })
       .eq("id", id);
 
     if (error) {

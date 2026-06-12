@@ -4,7 +4,6 @@ import Layout from "../layouts/Layout.astro";
 import Navbar from "../components/ui/navbar.astro";
 import { supabase } from "../lib/supabase";
 
-// Traemos únicamente los productos de la base de datos para las Cards
 const { data: games, error } = await supabase.from("products").select("*");
 
 if (error) {
@@ -110,7 +109,7 @@ if (error) {
 </Layout>
 
 <script>
-  // 🔥 Usamos astro:page-load para que se ejecute correctamente en cada cambio de pantalla
+  // astro:page-load para que se ejecute correctamente en cada cambio de pantalla
   document.addEventListener("astro:page-load", () => {
     // 1. LÓGICA DEL MODO OSCURO
     const toggleBtn = document.getElementById("theme-toggle-nav");

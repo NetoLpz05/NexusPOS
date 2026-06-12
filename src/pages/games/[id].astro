@@ -1,6 +1,6 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import Navbar from "../../components/ui/navbar.astro"; // 🔥 IMPORTAMOS EL NAVBAR UNIFICADO
+import Navbar from "../../components/ui/navbar.astro";
 import { supabase } from "../../lib/supabase";
 
 // 1. Obtener el ID dinámico desde la URL
@@ -26,7 +26,7 @@ if (error || !game) {
 const accessToken = Astro.cookies.get("sb-access-token")?.value;
 const refreshToken = Astro.cookies.get("sb-refresh-token")?.value;
 let userLoggedIn = false;
-let isAlreadyFavorited = false; // 🔥 Estado para saber si ya es favorito en la DB
+let isAlreadyFavorited = false;
 
 if (accessToken && refreshToken) {
   const {
@@ -35,7 +35,6 @@ if (accessToken && refreshToken) {
   if (user) {
     userLoggedIn = true;
 
-    // 🔥 Consultamos a Supabase si existe ya este registro
     const { data: favData } = await supabase
       .from("favorites")
       .select("id")
@@ -241,10 +240,9 @@ if (accessToken && refreshToken) {
 </Layout>
 
 <script>
-  // 🔥 Importamos la instancia de Supabase en el cliente
   import { supabase } from "../../lib/supabase";
 
-  // Escuchamos el evento nativo de Astro para asegurar que el JS corra siempre de forma óptima.
+  // Listeners al evento nativo de Astro para asegurar que el JS corra siempre de forma óptima.
   document.addEventListener("astro:page-load", () => {
     const favBtn = document.getElementById("fav-btn");
     const favIcon = document.getElementById("fav-icon");
@@ -258,7 +256,7 @@ if (accessToken && refreshToken) {
     let isFavorited = favBtn.getAttribute("data-favorited") === "true";
     const gameId = favBtn.getAttribute("data-game-id");
 
-    // --- 🤍 LÓGICA DE FAVORITOS ---
+    // --- LÓGICA DE FAVORITOS ---
     favBtn.addEventListener("click", async () => {
       if (!isLogged) {
         alert(
@@ -268,7 +266,7 @@ if (accessToken && refreshToken) {
         return;
       }
 
-      // 🕒 Bloqueamos clicks repetidos rápidos mientras responde Supabase
+      // Se bloquean clicks repetidos rápidos mientras responde Supabase
       favBtn.style.pointerEvents = "none";
 
       // Obtener el ID del cliente logueado
@@ -281,7 +279,7 @@ if (accessToken && refreshToken) {
       }
 
       if (!isFavorited) {
-        // --- ➕ AGREGAR A LA BASE DE DATOS ---
+        // --- AGREGAR A LA BASE DE DATOS ---
         const { error } = await supabase
           .from("favorites")
           .insert([{ user_id: user.id, product_id: gameId }]);
@@ -306,7 +304,7 @@ if (accessToken && refreshToken) {
           console.error("❌ Error insertando favorito:", error.message);
         }
       } else {
-        // --- ➖ ELIMINAR DE LA BASE DE DATOS ---
+        // --- ELIMINAR DE LA BASE DE DATOS ---
         const { error } = await supabase
           .from("favorites")
           .delete()
@@ -339,7 +337,7 @@ if (accessToken && refreshToken) {
       favBtn.style.pointerEvents = "auto";
     });
 
-    // --- 🛒 🔥 LÓGICA DE AÑADIR AL CARRITO ---
+    // --- AÑADIR AL CARRITO ---
     buyBtn?.addEventListener("click", async () => {
       if (!isLogged) {
         alert("🔒 ¡Inicia sesión para añadir este videojuego a tu carrito!");
@@ -357,7 +355,6 @@ if (accessToken && refreshToken) {
         } = await supabase.auth.getUser();
         if (!user) throw new Error("Sesión de usuario no válida");
 
-        // Usamos upsert para insertar o manejar conflictos si ya existe en el carrito
         const { error } = await supabase
           .from("cart_items")
           .upsert(

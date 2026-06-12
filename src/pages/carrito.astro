@@ -53,7 +53,6 @@ const IVA_RATE = 0.16; // 16% IVA
 const serverSubtotal =
   cartItems?.reduce((sum, item) => {
     if (!item.products) return sum;
-    // 🌟 CORRECCIÓN TS (Lado del servidor): Extraer el objeto si viene como Array
     const game = Array.isArray(item.products)
       ? item.products[0]
       : item.products;
@@ -116,7 +115,6 @@ const formatMoney = (amount: number) => {
               </div>
             ) : (
               cartItems.map((item) => {
-                // 🌟 CORRECCIÓN TS (Lado del Cliente): Extraer el objeto de forma segura si viene envuelto en un Array
                 const game = Array.isArray(item.products)
                   ? item.products[0]
                   : item.products;
@@ -309,9 +307,9 @@ const formatMoney = (amount: number) => {
     const checkoutBtn = document.getElementById("checkout-btn");
     const overlay = document.getElementById("payment-overlay");
 
-    // 🔥 FUNCIÓN PARA GENERAR CLAVES DE ACTIVACIÓN (Ejemplo: ABCD-EFGH-IJKL)
+    // FUNCIÓN PARA GENERAR CLAVES DE ACTIVACIÓN
     const generateActivationKey = () => {
-      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Excluimos 'O', '0', '1', 'I' para evitar confusiones visuales
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
       const segment = () =>
         Array.from(
           { length: 4 },
@@ -371,7 +369,7 @@ const formatMoney = (amount: number) => {
             product_id: item.product_id,
             price_at_purchase: g ? g.price : 0,
             quantity: item.quantity,
-            activation_key: generateActivationKey(), // 🔥 ¡Aquí inyectamos la clave única!
+            activation_key: generateActivationKey(),
           };
         });
 
